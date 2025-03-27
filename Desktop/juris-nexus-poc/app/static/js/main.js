@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
   initFileUpload();
   initTabNavigation();
   initContractAnalysis();
+  initExpertFeedbackForm(); // 初始化專家反饋表單
 });
 
 /**
@@ -274,6 +275,9 @@ function loadClauseContent(clauseId) {
     
     // 初始化評分功能
     initRating();
+    
+    // 顯示專家反饋表單
+    showExpertFeedbackForm();
   })
   .catch(error => {
     console.error('載入失敗:', error);
@@ -354,4 +358,105 @@ function showNotification(message, type = 'info') {
       }
     }, 300);
   }, 5000);
-} 
+}
+
+/**
+ * 初始化專家反饋表單
+ */
+function initExpertFeedbackForm() {
+  // 檢查是否在分析結果頁面
+  const expertFeedbackContainer = document.getElementById('expert-feedback-container');
+  if (!expertFeedbackContainer) return;
+  
+  // 載入 ExpertFeedbackForm 組件
+  const script = document.createElement('script');
+  script.src = '/static/js/components/ExpertFeedbackForm.js';
+  script.onload = function() {
+    // 初始化 Vue 應用
+    const app = Vue.createApp({
+      components: {
+        'expert-feedback-form': ExpertFeedbackForm
+      },
+      data() {
+        return {
+          analysisId: this.getAnalysisId(),
+          showNotification: false,
+          notificationMessage: '',
+          notificationType: 'info'
+        };
+      },
+      methods: {
+        getAnalysisId() {
+          if (window.analysisData) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idFromUrl = urlParams.get('id');
+            if (idFromUrl) return idFromUrl;
+            
+            if (window.analysisData.id) return window.analysisData.id;
+            if (window.analysisData.analysis && window.analysisData.analysis.id) 
+              return window.analysisData.analysis.id;
+            if (window.analysisData.document && window.analysisData.document.id) 
+              return window.analysisData.document.id;
+              
+            if (window.analysisData.document && window.analysisData.document.filename) {
+              const filename = window.analysisData.document.filename.replace(/\s+/g, '_').toLowerCase();
+              return `analysis_${filename}_${Date.now()}`;
+            }
+          }
+          
+          return `analysis_${Date.now()}`;
+        },
+        handleSubmitted(result) {
+          console.log('反饋已提交:', result);
+          this.showNotification = true;
+          this.notificationMessage = '感謝您的反饋！';
+          this.notificationType = 'success';
+          
+          setTimeout(() => {
+            this.showNotification = false;
+          }, 3000);
+        },
+        handleError(message) {
+          console.error('反饋提交錯誤:', message);
+          this.showNotification = true;
+          this.notificationMessage = message;
+          this.notificationType = 'error';
+          
+          setTimeout(() => {
+            this.showNotification = false;
+          }, 3000);
+        }
+      },
+      template: `
+        <div>
+          <expert-feedback-form 
+            :analysis-id="analysisId"
+            @submitted="handleSubmitted"
+            @error="handleError"
+          ></expert-feedback-form>
+          
+          <div v-if="showNotification" :class="'notification notification-' + notificationType">
+            {{ notificationMessage }}
+          </div>
+        </div>
+      `
+    });
+    
+    app.mount('#expert-feedback-form');
+  };
+  
+  document.head.appendChild(script);
+}
+
+/**
+ * 顯示專家反饋表單
+ */
+function showExpertFeedbackForm() {
+  const initialMessage = document.getElementById('sidebar-initial-message');
+  const feedbackContainer = document.getElementById('expert-feedback-container');
+  
+  if (initialMessage && feedbackContainer) {
+    initialMessage.style.display = 'none';
+    feedbackContainer.style.display = 'block';
+  }
+}

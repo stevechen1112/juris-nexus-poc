@@ -23,6 +23,8 @@ var/
 # 虛擬環境
 venv/
 ENV/
+.venv/
+.env/
 
 # IDE
 .idea/
@@ -37,7 +39,41 @@ app/data/temp/*
 !app/data/temp/.gitkeep
 app/data/learning/*
 !app/data/learning/.gitkeep
+app/data/cache/*
+!app/data/cache/.gitkeep
+app/data/mock/*
+!app/data/mock/.gitkeep
+app/data/conversations/*
+!app/data/conversations/.gitkeep
 
-# 系統
+# API 密鑰和敏感信息
+*_key.txt
+*_KEY*.rtf
+*api_key*
+*API_KEY*
+temp_keys/
+claude_key.txt
+huggingface_key.txt
+*_credentials.json
+*_config.json
+
+# 測試和臨時檔案
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.cache
+nosetests.xml
+
+# 系統生成文件
 .DS_Store
-Thumbs.db 
+Thumbs.db
+*.bak
+*.tmp
+*.temp

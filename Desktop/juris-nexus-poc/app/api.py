@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.document_processor import preprocess_document, split_into_clauses
 from app.dual_ai_engine import DualAIEngine
 from app.learning_recorder import LearningRecorder
+from app.expert_feedback import ExpertFeedbackSystem, FeedbackCategory, FeedbackLevel
 from app.utils import save_upload_file_temporarily, format_json_response, format_error_response
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ router = APIRouter(prefix="/api")
 # 緩存AI引擎實例
 _ai_engine = None
 _learning_recorder = None
+_expert_feedback_system = None
 
 def get_ai_engine() -> DualAIEngine:
     """取得或創建AI引擎實例
@@ -39,6 +41,20 @@ def get_learning_recorder() -> LearningRecorder:
     if _learning_recorder is None:
         _learning_recorder = LearningRecorder()
     return _learning_recorder
+
+def get_expert_feedback_system() -> ExpertFeedbackSystem:
+    """取得或創建專家反饋系統實例
+    
+    Returns:
+        ExpertFeedbackSystem: 專家反饋系統實例
+    """
+    global _expert_feedback_system
+    if _expert_feedback_system is None:
+        _expert_feedback_system = ExpertFeedbackSystem(
+            learning_recorder=get_learning_recorder(),
+            dual_ai_engine=get_ai_engine()
+        )
+    return _expert_feedback_system
 
 def _record_analysis_result(
     input_data: Dict[str, Any], 
@@ -277,3 +293,150 @@ async def process_document(file_path: str) -> Dict[str, Any]:
     """
     # 在非阻塞模式下調用同步函數
     return await asyncio.to_thread(preprocess_document, file_path)
+
+# 專家反饋請求模型
+class FeedbackRequest(BaseModel):
+    """專家反饋請求模型"""
+    analysis_id: str
+    expert_id: str
+    ratings: Dict[str, int]  # 類別名稱到評分 (1-5)
+    comments: Optional[Dict[str, str]] = None  # 類別名稱到評論
+    suggested_improvements: Optional[str] = None  # 建議的改進
+    overall_level: str = "neutral"  # 總體評價級別 (positive, neutral, negative)
+
+# 提交專家反饋端點
+@router.post("/feedback")
+async def submit_feedback(
+    request: FeedbackRequest,
+    feedback_system: ExpertFeedbackSystem = Depends(get_expert_feedback_system)
+) -> Dict[str, Any]:
+    """提交專家反饋
+    
+    Args:
+        request: 反饋請求
+        feedback_system: 專家反饋系統依賴
+
+    Returns:
+        Dict: 提交結果
+    """
+    logger.info(f"接收到專家反饋，分析ID: {request.analysis_id}")
+    
+    try:
+        # 轉換原始評分字典到枚舉對象
+        ratings = {}
+        for category_name, rating in request.ratings.items():
+            try:
+                category = FeedbackCategory(category_name)
+                ratings[category] = max(1, min(5, rating))  # 確保評分在1-5之間
+            except ValueError:
+                logger.warning(f"忽略無效的反饋類別: {category_name}")
+        
+        # 轉換原始評論字典到枚舉對象
+        comments = {}
+        if request.comments:
+            for category_name, comment in request.comments.items():
+                try:
+                    category = FeedbackCategory(category_name)
+                    comments[category] = comment
+                except ValueError:
+                    logger.warning(f"忽略無效的評論類別: {category_name}")
+        
+        # 轉換總體級別
+        try:
+            overall_level = FeedbackLevel(request.overall_level)
+        except ValueError:
+            logger.warning(f"無效的總體級別: {request.overall_level}，使用默認值'neutral'")
+            overall_level = FeedbackLevel.NEUTRAL
+        
+        # 提交反饋
+        result = await feedback_system.submit_feedback(
+            analysis_id=request.analysis_id,
+            expert_id=request.expert_id,
+            ratings=ratings,
+            comments=comments,
+            suggested_improvements=request.suggested_improvements,
+            overall_level=overall_level
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"提交專家反饋時出錯: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"提交專家反饋時出錯: {str(e)}")
+
+# 獲取分析的所有反饋端點
+@router.get("/feedback/{analysis_id}")
+async def get_feedback_for_analysis(
+    analysis_id: str,
+    feedback_system: ExpertFeedbackSystem = Depends(get_expert_feedback_system)
+) -> Dict[str, Any]:
+    """獲取特定分析的所有反饋
+    
+    Args:
+        analysis_id: 分析ID
+        feedback_system: 專家反饋系統依賴
+
+    Returns:
+        Dict: 包含反饋列表的響應
+    """
+    logger.info(f"獲取分析ID: {analysis_id} 的反饋")
+    
+    try:
+        feedback_list = await feedback_system.get_feedback_for_analysis(analysis_id)
+        return {
+            "status": "success",
+            "analysis_id": analysis_id,
+            "feedback_count": len(feedback_list),
+            "feedback": feedback_list
+        }
+        
+    except Exception as e:
+        logger.error(f"獲取分析反饋時出錯: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"獲取分析反饋時出錯: {str(e)}")
+
+# 獲取反饋統計摘要端點
+@router.get("/feedback/stats")
+async def get_feedback_stats(
+    time_period: str = "all",
+    detailed: bool = False,
+    feedback_system: ExpertFeedbackSystem = Depends(get_expert_feedback_system)
+) -> Dict[str, Any]:
+    """獲取反饋統計摘要
+    
+    Args:
+        time_period: 時間範圍 (day, week, month, all)
+        detailed: 是否返回詳細統計數據（用於儀表板）
+        feedback_system: 專家反饋系統依賴
+    
+    Returns:
+        Dict: 統計摘要
+    """
+    logger.info(f"獲取反饋統計摘要，時間範圍: {time_period}，詳細模式: {detailed}")
+    
+    # 驗證時間範圍參數
+    valid_periods = ["day", "week", "month", "all"]
+    if time_period not in valid_periods:
+        logger.warning(f"無效的時間範圍: {time_period}，使用默認值'all'")
+        time_period = "all"
+    
+    try:
+        if detailed:
+            # 獲取詳細統計數據（用於儀表板）
+            stats = await feedback_system.get_detailed_feedback_stats()
+            return {
+                "status": "success",
+                "time_period": time_period,
+                **stats  # 直接展開詳細統計數據
+            }
+        else:
+            # 獲取基本統計摘要
+            stats = await feedback_system.get_feedback_summary(time_period)
+            return {
+                "status": "success",
+                "time_period": time_period,
+                "stats": stats
+            }
+        
+    except Exception as e:
+        logger.error(f"獲取反饋統計時出錯: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"獲取反饋統計時出錯: {str(e)}")

@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+
+{% block title %}JURIS NEXUS - 系統狀態儀表板{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-card {
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .status-card.online {
+        background-color: #d4edda;
+        border-left: 5px solid #28a745;
+    }
+    .status-card.offline {
+        background-color: #f8d7da;
+        border-left: 5px solid #dc3545;
+    }
+    .status-card.mock {
+        background-color: #fff3cd;
+        border-left: 5px solid #ffc107;
+    }
+    .status-card h4 {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+    }
+    .status-card h4 .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        display: inline-block;
+    }
+    .status-card h4 .status-indicator.online {
+        background-color: #28a745;
+    }
+    .status-card h4 .status-indicator.offline {
+        background-color: #dc3545;
+    }
+    .status-card h4 .status-indicator.mock {
+        background-color: #ffc107;
+    }
+    .status-details {
+        margin-top: 1rem;
+    }
+    .status-details p {
+        margin-bottom: 0.5rem;
+    }
+    .api-test-btn {
+        margin-top: 1rem;
+    }
+    .chart-container {
+        height: 300px;
+        margin-bottom: 2rem;
+    }
+    .stats-card {
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        background-color: #f8f9fa;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    .stats-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .mock-toggle {
+        margin-top: 1rem;
+    }
+    .mock-toggle .form-check {
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="app">
+    <h1 class="mb-4">系統狀態儀表板</h1>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>API 連接狀態</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="status-card" :class="claudeStatus.class">
+                                <h4>
+                                    <span class="status-indicator" :class="claudeStatus.class"></span>
+                                    Claude API
+                                </h4>
+                                <p>[[ claudeStatus.message ]]</p>
+                                <div class="status-details" v-if="claudeDetails">
+                                    <p><strong>模型版本:</strong> [[ claudeDetails.model ]]</p>
+                                    <p><strong>最後響應時間:</strong> [[ claudeDetails.responseTime ]] ms</p>
+                                    <p><strong>API密鑰:</strong> [[ claudeDetails.keyStatus ]]</p>
+                                </div>
+                                <button class="btn btn-sm btn-primary api-test-btn" @click="testClaudeAPI" :disabled="isTestingClaude">
+                                    <span v-if="isTestingClaude">測試中...</span>
+                                    <span v-else>測試連接</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="status-card" :class="taiwanLLMStatus.class">
+                                <h4>
+                                    <span class="status-indicator" :class="taiwanLLMStatus.class"></span>
+                                    Taiwan LLM API
+                                </h4>
+                                <p>[[ taiwanLLMStatus.message ]]</p>
+                                <div class="status-details" v-if="taiwanLLMDetails">
+                                    <p><strong>模型版本:</strong> [[ taiwanLLMDetails.model ]]</p>
+                                    <p><strong>最後響應時間:</strong> [[ taiwanLLMDetails.responseTime ]] ms</p>
+                                    <p><strong>API密鑰:</strong> [[ taiwanLLMDetails.keyStatus ]]</p>
+                                </div>
+                                <button class="btn btn-sm btn-primary api-test-btn" @click="testTaiwanLLMAPI" :disabled="isTestingTaiwanLLM">
+                                    <span v-if="isTestingTaiwanLLM">測試中...</span>
+                                    <span v-else>測試連接</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>系統性能</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>模擬模式設置</h5>
+                </div>
+                <div class="card-body">
+                    <p>當API連接不可用時，系統將自動切換到模擬模式。您也可以手動控制模擬模式設置。</p>
+                    
+                    <div class="mock-toggle">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="mockModeToggle" v-model="mockModeEnabled" @change="updateMockMode">
+                            <label class="form-check-label" for="mockModeToggle">啟用模擬模式</label>
+                        </div>
+                        
+                        <div class="form-check form-switch" :class="{ 'text-muted': !mockModeEnabled }">
+                            <input class="form-check-input" type="checkbox" id="mockClaudeToggle" v-model="mockClaudeEnabled" @change="updateMockMode" :disabled="!mockModeEnabled">
+                            <label class="form-check-label" for="mockClaudeToggle">模擬 Claude API</label>
+                        </div>
+                        
+                        <div class="form-check form-switch" :class="{ 'text-muted': !mockModeEnabled }">
+                            <input class="form-check-input" type="checkbox" id="mockTaiwanLLMToggle" v-model="mockTaiwanLLMEnabled" @change="updateMockMode" :disabled="!mockModeEnabled">
+                            <label class="form-check-label" for="mockTaiwanLLMToggle">模擬 Taiwan LLM API</label>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <small>注意：更改模擬模式設置將影響所有用戶。請謹慎操作。</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="stats-card">
+                        <div class="stats-number">[[ totalRequests ]]</div>
+                        <div class="stats-label">總請求數</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stats-card">
+                        <div class="stats-number">[[ averageResponseTime ]] ms</div>
+                        <div class="stats-label">平均響應時間</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stats-card">
+                        <div class="stats-number">[[ successRate ]]%</div>
+                        <div class="stats-label">成功率</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stats-card">
+                        <div class="stats-number">[[ activeUsers ]]</div>
+                        <div class="stats-label">活躍用戶</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>系統日誌</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>時間</th>
+                            <th>級別</th>
+                            <th>來源</th>
+                            <th>消息</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(log, index) in systemLogs" :key="index">
+                            <td>[[ log.timestamp ]]</td>
+                            <td>
+                                <span class="badge" :class="getLogLevelClass(log.level)">[[ log.level ]]</span>
+                            </td>
+                            <td>[[ log.source ]]</td>
+                            <td>[[ log.message ]]</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const { createApp } = Vue;
+    
+    createApp({
+        delimiters: ['[[', ']]'],
+        data() {
+            return {
+                claudeStatus: {
+                    class: '{{ "mock" if mock_claude else "online" if not use_mock_mode else "offline" }}',
+                    message: '{{ "使用模擬模式" if mock_claude else "正常連接" if not use_mock_mode else "連接失敗" }}'
+                },
+                taiwanLLMStatus: {
+                    class: '{{ "mock" if mock_taiwan_llm else "online" if not use_mock_mode else "offline" }}',
+                    message: '{{ "使用模擬模式" if mock_taiwan_llm else "正常連接" if not use_mock_mode else "連接失敗" }}'
+                },
+                claudeDetails: {
+                    model: 'claude-3-5-sonnet-20241022',
+                    responseTime: '---',
+                    keyStatus: '{{ "已設置" if not mock_claude else "未使用" }}'
+                },
+                taiwanLLMDetails: {
+                    model: 'Llama-3-Taiwan-8B-Instruct',
+                    responseTime: '---',
+                    keyStatus: '{{ "已設置" if not mock_taiwan_llm else "未使用" }}'
+                },
+                isTestingClaude: false,
+                isTestingTaiwanLLM: false,
+                mockModeEnabled: {{ 'true' if use_mock_mode else 'false' }},
+                mockClaudeEnabled: {{ 'true' if mock_claude else 'false' }},
+                mockTaiwanLLMEnabled: {{ 'true' if mock_taiwan_llm else 'false' }},
+                totalRequests: 0,
+                averageResponseTime: 0,
+                successRate: 0,
+                activeUsers: 0,
+                systemLogs: []
+            };
+        },
+        mounted() {
+            this.loadSystemStats();
+            this.loadSystemLogs();
+            this.initPerformanceChart();
+        },
+        methods: {
+            async testClaudeAPI() {
+                this.isTestingClaude = true;
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch('/api/test/claude');
+                    const data = await response.json();
+                    const endTime = performance.now();
+                    
+                    this.claudeDetails.responseTime = Math.round(endTime - startTime);
+                    
+                    if (data.status === 'success') {
+                        this.claudeStatus.class = 'online';
+                        this.claudeStatus.message = '連接正常';
+                        this.claudeDetails.model = data.model || 'claude-3-5-sonnet-20241022';
+                        this.claudeDetails.keyStatus = '有效';
+                    } else if (data.status === 'mock') {
+                        this.claudeStatus.class = 'mock';
+                        this.claudeStatus.message = '使用模擬模式';
+                        this.claudeDetails.keyStatus = '未使用';
+                    } else {
+                        this.claudeStatus.class = 'offline';
+                        this.claudeStatus.message = data.message || '連接失敗';
+                        this.claudeDetails.keyStatus = '無效或未設置';
+                    }
+                } catch (error) {
+                    console.error('測試Claude API失敗:', error);
+                    this.claudeStatus.class = 'offline';
+                    this.claudeStatus.message = '連接失敗: ' + error.message;
+                } finally {
+                    this.isTestingClaude = false;
+                }
+            },
+            async testTaiwanLLMAPI() {
+                this.isTestingTaiwanLLM = true;
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch('/api/test/taiwan-llm');
+                    const data = await response.json();
+                    const endTime = performance.now();
+                    
+                    this.taiwanLLMDetails.responseTime = Math.round(endTime - startTime);
+                    
+                    if (data.status === 'success') {
+                        this.taiwanLLMStatus.class = 'online';
+                        this.taiwanLLMStatus.message = '連接正常';
+                        this.taiwanLLMDetails.model = data.model || 'Llama-3-Taiwan-8B-Instruct';
+                        this.taiwanLLMDetails.keyStatus = '有效';
+                    } else if (data.status === 'mock') {
+                        this.taiwanLLMStatus.class = 'mock';
+                        this.taiwanLLMStatus.message = '使用模擬模式';
+                        this.taiwanLLMDetails.keyStatus = '未使用';
+                    } else {
+                        this.taiwanLLMStatus.class = 'offline';
+                        this.taiwanLLMStatus.message = data.message || '連接失敗';
+                        this.taiwanLLMDetails.keyStatus = '無效或未設置';
+                    }
+                } catch (error) {
+                    console.error('測試Taiwan LLM API失敗:', error);
+                    this.taiwanLLMStatus.class = 'offline';
+                    this.taiwanLLMStatus.message = '連接失敗: ' + error.message;
+                } finally {
+                    this.isTestingTaiwanLLM = false;
+                }
+            },
+            async updateMockMode() {
+                try {
+                    const response = await fetch('/api/config/mock-mode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            use_mock_mode: this.mockModeEnabled,
+                            mock_claude: this.mockClaudeEnabled,
+                            mock_taiwan_llm: this.mockTaiwanLLMEnabled
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // 更新狀態顯示
+                        if (this.mockModeEnabled) {
+                            if (this.mockClaudeEnabled) {
+                                this.claudeStatus.class = 'mock';
+                                this.claudeStatus.message = '使用模擬模式';
+                            }
+                            
+                            if (this.mockTaiwanLLMEnabled) {
+                                this.taiwanLLMStatus.class = 'mock';
+                                this.taiwanLLMStatus.message = '使用模擬模式';
+                            }
+                        } else {
+                            // 重新測試連接
+                            this.testClaudeAPI();
+                            this.testTaiwanLLMAPI();
+                        }
+                    }
+                } catch (error) {
+                    console.error('更新模擬模式設置失敗:', error);
+                }
+            },
+            async loadSystemStats() {
+                try {
+                    const response = await fetch('/api/statistics');
+                    const data = await response.json();
+                    
+                    this.totalRequests = data.total_requests || 0;
+                    this.averageResponseTime = data.average_response_time || 0;
+                    this.successRate = data.success_rate || 0;
+                    this.activeUsers = data.active_users || 0;
+                } catch (error) {
+                    console.error('載入系統統計數據失敗:', error);
+                }
+            },
+            async loadSystemLogs() {
+                try {
+                    const response = await fetch('/api/logs');
+                    const data = await response.json();
+                    
+                    this.systemLogs = data.logs || [];
+                } catch (error) {
+                    console.error('載入系統日誌失敗:', error);
+                    
+                    // 使用模擬數據
+                    this.systemLogs = [
+                        {
+                            timestamp: '2025-03-27 18:30:22',
+                            level: 'INFO',
+                            source: 'app.model_clients',
+                            message: '成功初始化 Claude API 客戶端，使用模型: claude-3-5-sonnet-20241022'
+                        },
+                        {
+                            timestamp: '2025-03-27 18:30:22',
+                            level: 'WARNING',
+                            source: 'app.model_clients',
+                            message: '無法連接到 api.huggingface.co，將使用模擬模式'
+                        },
+                        {
+                            timestamp: '2025-03-27 18:29:15',
+                            level: 'INFO',
+                            source: 'app.api',
+                            message: '處理文件上傳請求: contract.pdf'
+                        },
+                        {
+                            timestamp: '2025-03-27 18:28:30',
+                            level: 'ERROR',
+                            source: 'app.model_clients',
+                            message: '調用 Taiwan LLM API 時出錯: 連接超時'
+                        },
+                        {
+                            timestamp: '2025-03-27 18:27:45',
+                            level: 'INFO',
+                            source: 'app.main',
+                            message: '系統啟動，版本: 1.2.0'
+                        }
+                    ];
+                }
+            },
+            initPerformanceChart() {
+                const ctx = document.getElementById('performanceChart').getContext('2d');
+                
+                // 模擬數據
+                const labels = ['18:00', '18:05', '18:10', '18:15', '18:20', '18:25', '18:30'];
+                const claudeResponseTimes = [320, 350, 310, 330, 290, 310, 300];
+                const taiwanLLMResponseTimes = [450, 480, 460, 440, 470, 430, 450];
+                
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Claude API 響應時間 (ms)',
+                                data: claudeResponseTimes,
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Taiwan LLM API 響應時間 (ms)',
+                                data: taiwanLLMResponseTimes,
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: '響應時間 (ms)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '時間'
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+            getLogLevelClass(level) {
+                switch (level) {
+                    case 'ERROR':
+                        return 'bg-danger';
+                    case 'WARNING':
+                        return 'bg-warning text-dark';
+                    case 'INFO':
+                        return 'bg-info text-dark';
+                    case 'DEBUG':
+                        return 'bg-secondary';
+                    default:
+                        return 'bg-light text-dark';
+                }
+            }
+        }
+    }).mount('#app');
+</script>
+{% endblock %}

@@ -128,6 +128,168 @@
     .overall-value {
         color: var(--primary-color);
     }
+    
+    /* 專家反饋表單樣式 */
+    .feedback-container {
+        padding: 1rem;
+        background-color: white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+    }
+    
+    .feedback-card {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        border: 1px solid var(--light-gray);
+        border-radius: var(--border-radius);
+        background-color: #f9f9f9;
+    }
+    
+    .feedback-card-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--primary-color);
+    }
+    
+    .feedback-card-desc {
+        font-size: 0.9rem;
+        color: var(--dark-gray);
+        margin-bottom: 1rem;
+    }
+    
+    .rating-slider {
+        margin-bottom: 1rem;
+    }
+    
+    .rating-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+        font-size: 0.8rem;
+        color: var(--dark-gray);
+    }
+    
+    .rating-numbers {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.25rem;
+        font-size: 0.8rem;
+        color: var(--dark-gray);
+    }
+    
+    .slider {
+        width: 100%;
+        height: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #ddd;
+        outline: none;
+        border-radius: 4px;
+    }
+    
+    .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+    }
+    
+    .slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: none;
+    }
+    
+    .slider::-ms-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: none;
+    }
+    
+    .comment-area {
+        margin-top: 0.5rem;
+    }
+    
+    .comment-label {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        color: var(--dark-gray);
+    }
+    
+    .comment-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--medium-gray);
+        border-radius: var(--border-radius);
+        font-size: 0.9rem;
+        resize: vertical;
+    }
+    
+    .section-title {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    .radio-group {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .improvement-input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--medium-gray);
+        border-radius: var(--border-radius);
+        font-size: 0.9rem;
+        resize: vertical;
+        margin-bottom: 1rem;
+    }
+    
+    .button-group {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+    
+    .success-message {
+        text-align: center;
+        padding: 2rem 1rem;
+    }
+    
+    .success-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: var(--success-color);
+    }
+    
+    .success-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--success-color);
+    }
+    
+    .success-text {
+        margin-bottom: 1.5rem;
+        color: var(--dark-gray);
+    }
 </style>
 {% endblock %}
 
@@ -226,9 +388,14 @@
         
         <!-- 側邊欄 -->
         <div class="sidebar">
-            <div class="initial-message">
+            <div class="initial-message" id="sidebar-initial-message">
                 <h3>建議和反饋</h3>
                 <p>選擇條款後，此處將顯示改進建議和專家反饋選項。</p>
+            </div>
+            
+            <!-- 專家反饋表單 -->
+            <div id="expert-feedback-container" style="display: none;">
+                <div id="expert-feedback-form"></div>
             </div>
         </div>
     </div>
@@ -350,4 +517,4 @@
         }
     };
 </script>
-{% endblock %} 
+{% endblock %}

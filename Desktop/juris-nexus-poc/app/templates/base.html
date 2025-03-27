@@ -3,12 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}JURIS NEXUS - 智慧合約風險分析{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Vue.js CDN -->
+    <script src="https://unpkg.com/vue@3.2.47/dist/vue.global.prod.js"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Polyfill 支援舊版瀏覽器 -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6,Object.entries,Array.prototype.includes"></script>
     {% block extra_css %}{% endblock %}
+    <style>
+        .system-status {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            display: flex;
+            justify-content: space-between;
+            z-index: 1000;
+        }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 1rem;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-dot.online {
+            background-color: #28a745;
+        }
+        .status-dot.offline {
+            background-color: #dc3545;
+        }
+        .status-dot.mock {
+            background-color: #ffc107;
+        }
+    </style>
 </head>
 <body>
     <!-- 導航欄 -->
@@ -30,6 +72,12 @@
             <li class="nav-item">
                 <a href="/knowledge" class="nav-link {% if active_page == 'knowledge' %}active{% endif %}">法律知識庫</a>
             </li>
+            <li class="nav-item">
+                <a href="/consultation" class="nav-link {% if active_page == 'consultation' %}active{% endif %}">法律諮詢</a>
+            </li>
+            <li class="nav-item">
+                <a href="/dashboard" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">系統狀態</a>
+            </li>
         </ul>
     </nav>
 
@@ -38,10 +86,28 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- 系統狀態欄 -->
+    <div class="system-status">
+        <div>
+            <div class="status-indicator">
+                <span class="status-dot {{ 'online' if not use_mock_mode else 'mock' }}"></span>
+                <span>Claude API: {{ 'Mock模式' if mock_claude else '線上' }}</span>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot {{ 'online' if not mock_taiwan_llm else 'mock' }}"></span>
+                <span>Taiwan LLM: {{ 'Mock模式' if mock_taiwan_llm else '線上' }}</span>
+            </div>
+        </div>
+        <div>
+            <span>版本: {{ version }}</span>
+        </div>
+    </div>
+
     <!-- 頁腳 -->
     <footer class="footer">
         <div class="container">
-            <p>© 2023-2024 JURIS NEXUS. 保留所有權利。</p>
+            <p> 2023-2024 JURIS NEXUS. </p>
+            <p>本系統提供的分析僅供參考，不構成法律建議。請諮詢專業律師獲取具體法律意見。</p>
         </div>
     </footer>
 
@@ -49,4 +115,4 @@
     <script src="{{ url_for('static', path='/js/main.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
-</html> 
+</html>

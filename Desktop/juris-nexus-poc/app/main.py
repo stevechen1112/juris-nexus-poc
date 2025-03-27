@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,8 +7,22 @@ from fastapi.templating import Jinja2Templates
 import time
 import os
 
-from app.config import APP_NAME, APP_VERSION, APP_DESCRIPTION
+from app.config import (
+    APP_NAME, 
+    APP_VERSION, 
+    APP_DESCRIPTION, 
+    TEMP_UPLOAD_DIR, 
+    USE_MOCK_MODE, 
+    MOCK_CLAUDE, 
+    MOCK_TAIWAN_LLM
+)
+
 from app.api import router as api_router
+from app.api_conversation import router as conversation_router
+from app.api_system import router as system_router
+
+# 確保臨時上傳目錄存在
+os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 
 # 設置日誌
 logger = logging.getLogger(__name__)
@@ -39,6 +53,8 @@ templates = Jinja2Templates(directory="app/templates")
 
 # 添加API路由
 app.include_router(api_router)
+app.include_router(conversation_router)
+app.include_router(system_router)
 
 # 請求計時中間件
 @app.middleware("http")
@@ -69,7 +85,16 @@ async def home(request: Request):
     Returns:
         TemplateResponse: 渲染後的首頁
     """
-    return templates.TemplateResponse("upload.html", {"request": request})
+    return templates.TemplateResponse(
+        "upload.html", 
+        {
+            "request": request, 
+            "use_mock_mode": USE_MOCK_MODE,
+            "mock_claude": MOCK_CLAUDE,
+            "mock_taiwan_llm": MOCK_TAIWAN_LLM,
+            "version": app.version
+        }
+    )
 
 @app.get("/upload")
 async def upload_page(request: Request):
@@ -81,7 +106,16 @@ async def upload_page(request: Request):
     Returns:
         TemplateResponse: 渲染後的上傳頁面
     """
-    return templates.TemplateResponse("upload.html", {"request": request})
+    return templates.TemplateResponse(
+        "upload.html", 
+        {
+            "request": request, 
+            "use_mock_mode": USE_MOCK_MODE,
+            "mock_claude": MOCK_CLAUDE,
+            "mock_taiwan_llm": MOCK_TAIWAN_LLM,
+            "version": app.version
+        }
+    )
 
 @app.get("/analysis-results")
 async def analysis_results(request: Request, id: str = None):
@@ -172,7 +206,34 @@ async def analysis_results(request: Request, id: str = None):
             "document": document,
             "analysis": analysis,
             "top_risks": top_risks,
-            "share_url": share_url
+            "share_url": share_url,
+            "use_mock_mode": USE_MOCK_MODE,
+            "mock_claude": MOCK_CLAUDE,
+            "mock_taiwan_llm": MOCK_TAIWAN_LLM,
+            "version": app.version
+        }
+    )
+
+@app.get("/feedback-dashboard")
+async def feedback_dashboard(request: Request):
+    """反饋數據分析儀表板頁面
+    
+    Args:
+        request: 請求對象
+        
+    Returns:
+        TemplateResponse: 渲染後的儀表板頁面
+    """
+    logger.info("訪問反饋數據分析儀表板")
+    
+    return templates.TemplateResponse(
+        "feedback_dashboard.html",
+        {
+            "request": request,
+            "use_mock_mode": USE_MOCK_MODE,
+            "mock_claude": MOCK_CLAUDE,
+            "mock_taiwan_llm": MOCK_TAIWAN_LLM,
+            "version": app.version
         }
     )
 

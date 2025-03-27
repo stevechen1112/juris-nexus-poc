@@ -210,3 +210,66 @@ class DualAIEngine:
             if ignore_cache:
                 self.taiwan_llm.cache_enabled = original_cache_state_taiwan
                 self.claude.cache_enabled = original_cache_state_claude
+
+    async def improve_based_on_feedback(
+        self,
+        analysis_id: str,
+        original_analysis: Dict[str, Any],
+        clauses: List[Dict[str, str]],
+        feedback: Dict[str, Any],
+        priority_areas: List[str] = None
+    ) -> Dict[str, Any]:
+        """基於專家反饋改進分析結果
+        
+        Args:
+            analysis_id: 分析ID
+            original_analysis: 原始分析結果
+            clauses: 原始合同條款
+            feedback: 專家反饋分析結果
+            priority_areas: 優先改進領域
+            
+        Returns:
+            Dict[str, Any]: 改進後的分析結果
+        """
+        logger.info(f"[{analysis_id}] 基於專家反饋開始改進分析")
+        
+        try:
+            # 優先使用Claude進行改進
+            logger.info(f"[{analysis_id}] 使用Claude基於專家反饋改進分析")
+            
+            # 構建改進請求上下文
+            improvement_context = {
+                "original_analysis": original_analysis,
+                "clauses": clauses,
+                "feedback": feedback,
+                "priority_areas": priority_areas or feedback.get("priority_areas", [])
+            }
+            
+            # 調用Claude進行改進
+            improved_analysis = await self.claude.improve_analysis_with_feedback(
+                **improvement_context
+            )
+            
+            logger.info(f"[{analysis_id}] 基於專家反饋的分析改進完成")
+            return improved_analysis
+        
+        except Exception as e:
+            logger.error(f"[{analysis_id}] 基於專家反饋改進分析時出錯: {str(e)}")
+            # 如果Claude失敗，嘗試使用Taiwan LLM
+            try:
+                logger.info(f"[{analysis_id}] 改為使用Taiwan LLM基於專家反饋改進分析")
+                improved_analysis = await self.taiwan_llm.improve_with_feedback(
+                    original_analysis=original_analysis,
+                    feedback=feedback,
+                    clauses=clauses
+                )
+                return improved_analysis
+            except Exception as nested_e:
+                logger.error(f"[{analysis_id}] 使用Taiwan LLM改進分析也失敗: {str(nested_e)}")
+                # 無法改進時返回原始分析結果，但添加失敗信息
+                return {
+                    **original_analysis,
+                    "improvement_status": "failed",
+                    "improvement_error": str(e),
+                    "feedback_applied": False
+                }

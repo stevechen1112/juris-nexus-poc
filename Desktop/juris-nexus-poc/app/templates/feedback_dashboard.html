@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% set active_page = 'dashboard' %}
+
+{% block title %}反饋數據分析儀表板 - JURIS NEXUS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 儀表板特定樣式 */
+    .dashboard-container {
+        padding: 1.5rem;
+    }
+    
+    .dashboard-header {
+        margin-bottom: 2rem;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background-color: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--primary-color);
+    }
+    
+    .stat-label {
+        color: var(--dark-gray);
+        font-size: 0.9rem;
+    }
+    
+    .chart-container {
+        background-color: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .chart-title {
+        font-weight: 600;
+        color: var(--dark-gray);
+    }
+    
+    .chart-filters {
+        display: flex;
+        gap: 1rem;
+    }
+    
+    .filter-select {
+        padding: 0.5rem;
+        border: 1px solid var(--medium-gray);
+        border-radius: var(--border-radius);
+        font-size: 0.9rem;
+    }
+    
+    .chart {
+        height: 300px;
+        width: 100%;
+    }
+    
+    .feedback-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .feedback-table th,
+    .feedback-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--light-gray);
+    }
+    
+    .feedback-table th {
+        font-weight: 600;
+        color: var(--dark-gray);
+        background-color: var(--light-gray);
+    }
+    
+    .feedback-table tr:hover {
+        background-color: var(--light-gray);
+    }
+    
+    .rating-cell {
+        display: flex;
+        align-items: center;
+    }
+    
+    .rating-value {
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    
+    .rating-stars {
+        color: var(--accent-color);
+    }
+    
+    .tab-container {
+        margin-bottom: 1.5rem;
+    }
+    
+    .tab-buttons {
+        display: flex;
+        border-bottom: 1px solid var(--medium-gray);
+    }
+    
+    .tab-button {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+    }
+    
+    .tab-button.active {
+        border-bottom-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    
+    .tab-content {
+        display: none;
+        padding: 1.5rem 0;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1>專家反饋數據分析儀表板</h1>
+        <p class="lead">查看和分析專家對系統分析結果的反饋數據</p>
+    </div>
+    
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <div class="tab-button active" data-tab="overview">概覽</div>
+            <div class="tab-button" data-tab="trends">趨勢分析</div>
+            <div class="tab-button" data-tab="details">詳細數據</div>
+        </div>
+        
+        <!-- 概覽頁籤 -->
+        <div id="overview" class="tab-content active">
+            <!-- 統計卡片 -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-feedback-count">--</div>
+                    <div class="stat-label">收集的反饋總數</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avg-overall-rating">--</div>
+                    <div class="stat-label">平均總體評分</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="positive-feedback-percent">--</div>
+                    <div class="stat-label">正面反饋百分比</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="feedback-this-month">--</div>
+                    <div class="stat-label">本月收集的反饋</div>
+                </div>
+            </div>
+            
+            <!-- 各維度評分圖表 -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">各維度平均評分</h3>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="dimension-time-filter">
+                            <option value="all">所有時間</option>
+                            <option value="month">最近一個月</option>
+                            <option value="week">最近一週</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart" id="dimensions-chart"></div>
+            </div>
+            
+            <!-- 反饋級別分布圖表 -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">反饋級別分布</h3>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="level-time-filter">
+                            <option value="all">所有時間</option>
+                            <option value="month">最近一個月</option>
+                            <option value="week">最近一週</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart" id="levels-chart"></div>
+            </div>
+        </div>
+        
+        <!-- 趨勢分析頁籤 -->
+        <div id="trends" class="tab-content">
+            <!-- 反饋趨勢圖表 -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">反饋趨勢</h3>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="trend-time-range">
+                            <option value="year">過去一年</option>
+                            <option value="quarter">過去三個月</option>
+                            <option value="month">過去一個月</option>
+                        </select>
+                        <select class="filter-select" id="trend-dimension">
+                            <option value="overall">總體評分</option>
+                            <option value="accuracy">準確性</option>
+                            <option value="completeness">完整性</option>
+                            <option value="relevance">相關性</option>
+                            <option value="clarity">清晰度</option>
+                            <option value="actionability">可行性</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart" id="trend-chart"></div>
+            </div>
+            
+            <!-- 維度對比圖表 -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">維度評分對比</h3>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="comparison-period-1">
+                            <option value="current-month">本月</option>
+                            <option value="last-month">上個月</option>
+                            <option value="two-months-ago">兩個月前</option>
+                        </select>
+                        <span>vs</span>
+                        <select class="filter-select" id="comparison-period-2">
+                            <option value="last-month">上個月</option>
+                            <option value="two-months-ago">兩個月前</option>
+                            <option value="three-months-ago">三個月前</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="chart" id="comparison-chart"></div>
+            </div>
+        </div>
+        
+        <!-- 詳細數據頁籤 -->
+        <div id="details" class="tab-content">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">最近反饋</h3>
+                    <div class="chart-filters">
+                        <select class="filter-select" id="recent-feedback-count">
+                            <option value="10">最近 10 條</option>
+                            <option value="20">最近 20 條</option>
+                            <option value="50">最近 50 條</option>
+                        </select>
+                    </div>
+                </div>
+                <table class="feedback-table" id="recent-feedback-table">
+                    <thead>
+                        <tr>
+                            <th>時間</th>
+                            <th>分析 ID</th>
+                            <th>準確性</th>
+                            <th>完整性</th>
+                            <th>相關性</th>
+                            <th>清晰度</th>
+                            <th>可行性</th>
+                            <th>總體評價</th>
+                        </tr>
+                    </thead>
+                    <tbody id="feedback-table-body">
+                        <!-- 表格內容將由 JavaScript 動態生成 -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 常見建議分析 -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3 class="chart-title">常見改進建議</h3>
+                </div>
+                <div id="suggestions-analysis">
+                    <!-- 建議分析將由 JavaScript 動態生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- 引入 Chart.js 圖表庫 -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<!-- 引入儀表板 JavaScript -->
+<script src="{{ url_for('static', path='/js/feedback_dashboard.js') }}"></script>
+{% endblock %}

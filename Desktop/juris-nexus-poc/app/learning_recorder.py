@@ -23,8 +23,10 @@ class LearningRecorder:
         os.makedirs(storage_dir, exist_ok=True)
         self.success_dir = os.path.join(storage_dir, "success")
         self.failure_dir = os.path.join(storage_dir, "failure")
+        self.feedback_dir = os.path.join(storage_dir, "feedback")
         os.makedirs(self.success_dir, exist_ok=True)
         os.makedirs(self.failure_dir, exist_ok=True)
+        os.makedirs(self.feedback_dir, exist_ok=True)
         logger.info(f"學習記錄器已初始化，記錄目錄: {storage_dir}")
     
     async def record_interaction(
@@ -308,3 +310,138 @@ class LearningRecorder:
         if self._write_json_file(filepath, record_data):
             return record_id
         return ""
+
+    async def link_feedback(
+        self,
+        analysis_id: str,
+        feedback_id: str,
+        feedback_data: Dict[str, Any]
+    ) -> bool:
+        """將專家反饋與分析結果關聯(異步)
+
+        Args:
+            analysis_id: 分析ID
+            feedback_id: 反饋ID
+            feedback_data: 反饋數據
+
+        Returns:
+            bool: 是否成功關聯
+        """
+        # 檢查分析記錄是否存在
+        filename = f"{analysis_id}.json"
+        success_path = os.path.join(self.success_dir, filename)
+        failure_path = os.path.join(self.failure_dir, filename)
+        
+        if os.path.exists(success_path):
+            filepath = success_path
+        elif os.path.exists(failure_path):
+            filepath = failure_path
+        else:
+            logger.warning(f"未找到分析ID為{analysis_id}的記錄文件")
+            return False
+        
+        try:
+            # 讀取現有記錄
+            data = await asyncio.to_thread(self._read_json_file, filepath)
+            if not data:
+                return False
+            
+            # 添加反饋關聯
+            if "feedback" not in data:
+                data["feedback"] = []
+            
+            # 添加新反饋ID和基本信息
+            data["feedback"].append({
+                "feedback_id": feedback_id,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "average_rating": feedback_data.get("average_rating", 0),
+                "overall_level": feedback_data.get("overall_level", "neutral")
+            })
+            
+            # 更新元數據
+            if "metadata" not in data:
+                data["metadata"] = {}
+            data["metadata"]["has_feedback"] = True
+            data["metadata"]["last_feedback_time"] = datetime.datetime.now().isoformat()
+            
+            # 寫回文件
+            await asyncio.to_thread(self._write_json_file, filepath, data)
+            logger.info(f"已關聯反饋 {feedback_id} 到分析 {analysis_id}")
+            
+            # 同時將完整反饋數據保存到專用目錄
+            feedback_path = os.path.join(self.feedback_dir, f"{feedback_id}.json")
+            await asyncio.to_thread(self._write_json_file, feedback_path, feedback_data)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"關聯反饋時出錯: {str(e)}")
+            return False
+    
+    async def get_analysis(self, analysis_id: str) -> Optional[Dict[str, Any]]:
+        """獲取分析結果(異步)
+
+        Args:
+            analysis_id: 分析ID
+
+        Returns:
+            Optional[Dict[str, Any]]: 分析結果，如果不存在則返回None
+        """
+        # 檢查分析記錄是否存在
+        filename = f"{analysis_id}.json"
+        success_path = os.path.join(self.success_dir, filename)
+        failure_path = os.path.join(self.failure_dir, filename)
+        
+        if os.path.exists(success_path):
+            filepath = success_path
+        elif os.path.exists(failure_path):
+            filepath = failure_path
+        else:
+            logger.warning(f"未找到分析ID為{analysis_id}的記錄文件")
+            return None
+        
+        try:
+            # 讀取記錄
+            data = await asyncio.to_thread(self._read_json_file, filepath)
+            if not data:
+                return None
+                
+            # 獲取最新的分析結果
+            if "improved_analysis" in data:
+                return data["improved_analysis"]
+            else:
+                return data.get("initial_analysis", {})
+                
+        except Exception as e:
+            logger.error(f"獲取分析結果時出錯: {str(e)}")
+            return None
+    
+    async def get_full_analysis_data(self, analysis_id: str) -> Optional[Dict[str, Any]]:
+        """獲取完整分析數據(異步)，包含原始輸入、初步分析和改進分析
+
+        Args:
+            analysis_id: 分析ID
+
+        Returns:
+            Optional[Dict[str, Any]]: 完整分析數據，如果不存在則返回None
+        """
+        # 檢查分析記錄是否存在
+        filename = f"{analysis_id}.json"
+        success_path = os.path.join(self.success_dir, filename)
+        failure_path = os.path.join(self.failure_dir, filename)
+        
+        if os.path.exists(success_path):
+            filepath = success_path
+        elif os.path.exists(failure_path):
+            filepath = failure_path
+        else:
+            logger.warning(f"未找到分析ID為{analysis_id}的記錄文件")
+            return None
+        
+        try:
+            # 讀取記錄
+            return await asyncio.to_thread(self._read_json_file, filepath)
+                
+        except Exception as e:
+            logger.error(f"獲取完整分析數據時出錯: {str(e)}")
+            return None

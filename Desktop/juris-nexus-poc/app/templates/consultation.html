@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}JURIS NEXUS - 法律諮詢{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chat-container {
+        height: 70vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .chat-messages {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .message {
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        max-width: 80%;
+    }
+    .message.user {
+        background-color: #007bff;
+        color: white;
+        align-self: flex-end;
+        margin-left: auto;
+    }
+    .message.system {
+        background-color: #e9ecef;
+        color: #212529;
+        align-self: flex-start;
+    }
+    .message-input {
+        display: flex;
+        margin-top: 1rem;
+    }
+    .message-input textarea {
+        flex-grow: 1;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.5rem;
+        margin-right: 0.5rem;
+        resize: none;
+        height: 100px;
+    }
+    .conversation-list {
+        margin-bottom: 2rem;
+    }
+    .conversation-item {
+        padding: 0.75rem 1rem;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .conversation-item:hover {
+        background-color: #f8f9fa;
+    }
+    .conversation-item.active {
+        background-color: #e9ecef;
+        border-color: #007bff;
+    }
+    .topic-selector {
+        margin-bottom: 1rem;
+    }
+    .loading-indicator {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        margin: 1rem 0;
+    }
+    .loading-indicator.active {
+        display: flex;
+    }
+    .dot-flashing {
+        position: relative;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: #007bff;
+        animation: dot-flashing 1s infinite linear alternate;
+        animation-delay: 0.5s;
+    }
+    .dot-flashing::before, .dot-flashing::after {
+        content: '';
+        display: inline-block;
+        position: absolute;
+        top: 0;
+    }
+    .dot-flashing::before {
+        left: -15px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: #007bff;
+        animation: dot-flashing 1s infinite alternate;
+        animation-delay: 0s;
+    }
+    .dot-flashing::after {
+        left: 15px;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: #007bff;
+        animation: dot-flashing 1s infinite alternate;
+        animation-delay: 1s;
+    }
+    @keyframes dot-flashing {
+        0% {
+            background-color: #007bff;
+        }
+        50%, 100% {
+            background-color: rgba(0, 123, 255, 0.2);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="app">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h5>對話列表</h5>
+                    <button class="btn btn-sm btn-primary" @click="createNewConversation">新對話</button>
+                </div>
+                <div class="card-body">
+                    <div class="conversation-list">
+                        <div v-for="conv in conversations" :key="conv.id" 
+                             class="conversation-item" 
+                             :class="{ active: currentConversation && conv.id === currentConversation.id }"
+                             @click="loadConversation(conv.id)">
+                            <div class="d-flex justify-content-between">
+                                <span>[[ conv.title ]]</span>
+                                <small>[[ formatDate(conv.created_at) ]]</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5>法律主題</h5>
+                </div>
+                <div class="card-body">
+                    <div class="topic-selector">
+                        <select class="form-select" v-model="selectedTopic">
+                            <option value="">選擇主題</option>
+                            <option value="contract">合約法</option>
+                            <option value="civil">民事法</option>
+                            <option value="criminal">刑事法</option>
+                            <option value="administrative">行政法</option>
+                            <option value="intellectual_property">智慧財產權</option>
+                            <option value="labor">勞動法</option>
+                            <option value="family">家庭法</option>
+                            <option value="tax">稅法</option>
+                            <option value="corporate">公司法</option>
+                            <option value="real_estate">不動產法</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <h5 v-if="currentConversation">[[ currentConversation.title ]]</h5>
+                    <h5 v-else>新對話</h5>
+                    <div v-if="mock_mode" class="alert alert-warning">
+                        <small>注意：系統目前處於模擬模式，回應僅供參考</small>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chat-container">
+                        <div class="chat-messages" ref="chatMessages">
+                            <div v-for="(message, index) in messages" :key="index" 
+                                 class="message" :class="message.role">
+                                <div v-html="formatMessage(message.content)"></div>
+                            </div>
+                        </div>
+                        <div class="loading-indicator" :class="{ active: isLoading }">
+                            <div class="dot-flashing"></div>
+                        </div>
+                        <div class="message-input">
+                            <textarea v-model="newMessage" 
+                                      @keydown.enter.prevent="sendMessage"
+                                      placeholder="輸入您的法律問題..."></textarea>
+                            <button class="btn btn-primary" @click="sendMessage" :disabled="isLoading || !newMessage.trim()">
+                                發送
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const { createApp } = Vue;
+    
+    createApp({
+        delimiters: ['[[', ']]'],
+        data() {
+            return {
+                conversations: [],
+                currentConversation: null,
+                messages: [],
+                newMessage: '',
+                isLoading: false,
+                selectedTopic: '',
+                mock_mode: {{ 'true' if use_mock_mode else 'false' }}
+            };
+        },
+        mounted() {
+            this.loadConversations();
+        },
+        methods: {
+            async loadConversations() {
+                try {
+                    const response = await fetch('/api/conversation/');
+                    const data = await response.json();
+                    this.conversations = data.conversations || [];
+                } catch (error) {
+                    console.error('載入對話列表失敗:', error);
+                }
+            },
+            async createNewConversation() {
+                this.currentConversation = null;
+                this.messages = [
+                    {
+                        role: 'system',
+                        content: '您好，我是 JURIS NEXUS 法律諮詢助手。請問有什麼法律問題需要協助？'
+                    }
+                ];
+                this.newMessage = '';
+            },
+            async loadConversation(conversationId) {
+                try {
+                    this.isLoading = true;
+                    const response = await fetch(`/api/conversation/${conversationId}`);
+                    const data = await response.json();
+                    this.currentConversation = data.conversation;
+                    
+                    const messagesResponse = await fetch(`/api/conversation/${conversationId}/messages`);
+                    const messagesData = await messagesResponse.json();
+                    this.messages = messagesData.messages || [];
+                    
+                    this.$nextTick(() => {
+                        this.scrollToBottom();
+                    });
+                } catch (error) {
+                    console.error('載入對話失敗:', error);
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+            async sendMessage() {
+                if (!this.newMessage.trim()) return;
+                
+                const userMessage = this.newMessage.trim();
+                this.messages.push({
+                    role: 'user',
+                    content: userMessage
+                });
+                this.newMessage = '';
+                
+                this.$nextTick(() => {
+                    this.scrollToBottom();
+                });
+                
+                this.isLoading = true;
+                
+                try {
+                    let conversationId = this.currentConversation?.id;
+                    
+                    // 如果是新對話，先創建對話
+                    if (!conversationId) {
+                        const createResponse = await fetch('/api/conversation/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                title: userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : ''),
+                                topic: this.selectedTopic || 'general'
+                            })
+                        });
+                        
+                        const createData = await createResponse.json();
+                        conversationId = createData.conversation_id;
+                        this.currentConversation = {
+                            id: conversationId,
+                            title: createData.title,
+                            created_at: new Date().toISOString()
+                        };
+                        
+                        // 重新加載對話列表
+                        this.loadConversations();
+                    }
+                    
+                    // 發送消息
+                    const messageResponse = await fetch(`/api/conversation/${conversationId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            content: userMessage,
+                            role: 'user'
+                        })
+                    });
+                    
+                    const messageData = await messageResponse.json();
+                    
+                    // 添加系統回應
+                    this.messages.push({
+                        role: 'system',
+                        content: messageData.response
+                    });
+                    
+                    this.$nextTick(() => {
+                        this.scrollToBottom();
+                    });
+                } catch (error) {
+                    console.error('發送消息失敗:', error);
+                    this.messages.push({
+                        role: 'system',
+                        content: '很抱歉，處理您的請求時發生錯誤。請稍後再試。'
+                    });
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+            scrollToBottom() {
+                const container = this.$refs.chatMessages;
+                container.scrollTop = container.scrollHeight;
+            },
+            formatDate(dateString) {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('zh-TW');
+            },
+            formatMessage(content) {
+                // 簡單的Markdown轉HTML
+                return content
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+            }
+        }
+    }).mount('#app');
+</script>
+{% endblock %}
