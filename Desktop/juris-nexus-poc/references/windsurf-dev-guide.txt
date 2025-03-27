@@ -1,0 +1,476 @@
+# AI法律助手概念驗證階段開發指南
+
+## 專案概述
+
+本專案（代號：JURIS NEXUS）旨在開發一個基於雙層AI架構的法律助手系統的概念驗證(PoC)原型。系統將結合生成型AI(Taiwan LLM)和判斷型AI(Claude)的優勢，為律師提供高效、準確的法律文件分析和建議。
+
+## 開發目標
+
+1. 實現雙層AI架構的基本協作機制
+2. 專注於單一高價值法律任務：合同條款風險識別與分析
+3. 建立基本評估框架衡量系統效能
+4. 完成一個可演示的工作原型
+
+## 技術堆疊
+
+- **後端**: Python, FastAPI
+- **AI服務**: Claude API, Taiwan LLM API
+- **數據處理**: PyPDF2/pdfplumber(PDF處理), docx(Word處理)
+- **開發輔助**: Cursor AI
+- **版本控制**: Git
+- **測試**: Pytest
+
+## 系統架構
+
+```
+┌─────────────────┐     ┌───────────────────┐     ┌────────────────┐
+│                 │     │                   │     │                │
+│  文件處理模組    │────▶│  雙層AI協作引擎    │────▶│  結果呈現模組   │
+│                 │     │                   │     │                │
+└─────────────────┘     └───────────────────┘     └────────────────┘
+        ▲                        │
+        │                        ▼
+┌─────────────────┐     ┌───────────────────┐
+│                 │     │                   │
+│  文件輸入介面    │     │  學習記錄模組      │
+│                 │     │                   │
+└─────────────────┘     └───────────────────┘
+```
+
+## 核心模塊實現規範
+
+### 1. 文件處理模組 (`document_processor.py`)
+
+#### 職責:
+- 接收和解析法律文件(主要是合同文件)
+- 將文件轉換為結構化文本
+- 識別基本文檔結構(章節、條款等)
+
+#### 關鍵功能:
+```python
+def extract_text_from_pdf(file_path: str) -> str:
+    """從PDF文件中提取文本"""
+    pass
+
+def extract_text_from_docx(file_path: str) -> str:
+    """從Word文件中提取文本"""
+    pass
+
+def split_into_clauses(document_text: str) -> List[Dict[str, str]]:
+    """將文檔文本分割為條款單位"""
+    pass
+
+def preprocess_document(file_path: str) -> Dict:
+    """文檔預處理主函數"""
+    pass
+```
+
+### 2. 雙層AI協作引擎 (`dual_ai_engine.py`)
+
+#### 職責:
+- 協調生成型AI(Taiwan LLM)和判斷型AI(Claude)的協作
+- 實現內容生成和評估流程
+- 處理AI回應和優化循環
+
+#### 關鍵功能:
+```python
+class DualAIEngine:
+    def __init__(self, taiwan_llm_client, claude_client):
+        """初始化雙AI引擎"""
+        self.generator = taiwan_llm_client  # 生成式AI (Taiwan LLM)
+        self.evaluator = claude_client  # 判斷式AI (Claude)
+        
+    async def analyze_contract(self, clauses: List[Dict[str, str]]) -> Dict:
+        """分析合同條款並識別風險"""
+        # 1. 調用Taiwan LLM生成初步分析
+        initial_analysis = await self._generate_analysis(clauses)
+        
+        # 2. 調用Claude評估分析質量和風險識別準確性
+        evaluation = await self._evaluate_analysis(clauses, initial_analysis)
+        
+        # 3. 如果評估結果表明需要改進，則優化分析
+        if evaluation.get('needs_improvement', False):
+            improved_analysis = await self._improve_analysis(
+                clauses, 
+                initial_analysis, 
+                evaluation
+            )
+            final_analysis = improved_analysis
+        else:
+            final_analysis = initial_analysis
+            
+        # 4. 記錄處理過程(用於後續學習)
+        self._record_interaction(clauses, initial_analysis, evaluation, final_analysis)
+        
+        return {
+            "analysis": final_analysis,
+            "evaluation": evaluation,
+            "metadata": {
+                "improved": evaluation.get('needs_improvement', False),
+                "confidence": evaluation.get('confidence', 0)
+            }
+        }
+        
+    async def _generate_analysis(self, clauses: List[Dict[str, str]]) -> Dict:
+        """使用Taiwan LLM生成初步分析"""
+        pass
+    
+    async def _evaluate_analysis(self, clauses: List[Dict[str, str]], analysis: Dict) -> Dict:
+        """使用Claude評估分析質量"""
+        pass
+    
+    async def _improve_analysis(self, clauses: List[Dict[str, str]], 
+                               analysis: Dict, evaluation: Dict) -> Dict:
+        """根據評估反饋優化分析，可使用Taiwan LLM或Claude"""
+        pass
+    
+    def _record_interaction(self, clauses, initial_analysis, 
+                            evaluation, final_analysis):
+        """記錄交互過程用於學習"""
+        pass
+```
+
+### 3. API模塊 (`api.py`)
+
+#### 職責:
+- 提供HTTP端點用於文件上傳和分析
+- 處理API請求和響應
+- 管理非同步處理流程
+
+#### 關鍵功能:
+```python
+app = FastAPI(title="法律AI助手", version="0.1.0")
+
+@app.post("/api/analyze-contract")
+async def analyze_contract(file: UploadFile = File(...)):
+    """接收合同文件並返回風險分析"""
+    # 處理文件上傳
+    temp_file_path = save_upload_file_temporarily(file)
+    
+    try:
+        # 處理文檔
+        document_data = document_processor.preprocess_document(temp_file_path)
+        
+        # 分析合同
+        engine = get_ai_engine()
+        result = await engine.analyze_contract(document_data['clauses'])
+        
+        return {
+            "status": "success",
+            "document_info": {
+                "filename": file.filename,
+                "total_clauses": len(document_data['clauses'])
+            },
+            "analysis_result": result
+        }
+    finally:
+        # 清理臨時文件
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+```
+
+### 4. 模型接口模塊 (`model_clients.py`)
+
+#### 職責:
+- 封裝與AI模型的通信
+- 處理API請求限流和錯誤處理
+- 格式化提示和解析回應
+
+#### 關鍵功能:
+```python
+class TaiwanLLMClient:
+    def __init__(self, api_key: str, api_url: str):
+        """初始化Taiwan LLM客戶端"""
+        self.api_key = api_key
+        self.api_url = api_url
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+    async def generate(self, prompt: str, max_tokens: int = 1000) -> str:
+        """生成文本回應"""
+        # 實現與Taiwan LLM API的通信
+        pass
+
+class ClaudeClient:
+    def __init__(self, api_key: str):
+        """初始化Claude客戶端"""
+        self.api_key = api_key
+        self.base_url = "https://api.anthropic.com/v1"
+        self.headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+    async def generate(self, prompt: str, max_tokens: int = 1000) -> str:
+        """生成文本回應"""
+        # 實現與Claude API的通信
+        pass
+```
+
+### 5. 學習記錄模塊 (`learning_recorder.py`)
+
+#### 職責:
+- 記錄AI互動和結果
+- 儲存成功和失敗案例
+- 為後續階段的學習機制準備數據
+
+#### 關鍵功能:
+```python
+class LearningRecorder:
+    def __init__(self, storage_dir: str = "./data/learning"):
+        """初始化學習記錄器"""
+        self.storage_dir = storage_dir
+        os.makedirs(storage_dir, exist_ok=True)
+        
+    def record_interaction(self, input_data: Dict, initial_output: Dict,
+                          evaluation: Dict, final_output: Dict):
+        """記錄完整的交互過程"""
+        # 實現交互記錄邏輯
+        pass
+        
+    def get_successful_examples(self, limit: int = 10) -> List[Dict]:
+        """獲取成功案例"""
+        pass
+```
+
+## 提示工程指南
+
+### Taiwan LLM提示模板 (合同風險分析-生成)
+
+```
+您是一位精通台灣法律的資深合約審查專家，請分析以下合同條款，並識別所有潛在的法律風險、不明確之處或可能存在爭議的條款。
+
+分析請包括:
+1. 每個條款的潛在風險點
+2. 風險嚴重程度評估(高/中/低)
+3. 可能的優化建議
+4. 引用相關法規或判例(如適用)
+
+請特別注意台灣法律體系下的特殊要求和規範。
+
+合同條款:
+{clauses}
+
+請以JSON格式輸出分析結果，每個條款的分析單獨列出。格式如下:
+{
+  "analysis": [
+    {
+      "clause_id": "條款ID",
+      "clause_text": "條款原文",
+      "risks": [
+        {
+          "risk_description": "風險描述",
+          "severity": "風險嚴重程度",
+          "legal_basis": "法律依據(如有)",
+          "recommendation": "改進建議"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "high_risks_count": 高風險數量,
+    "medium_risks_count": 中風險數量,
+    "low_risks_count": 低風險數量,
+    "overall_risk_assessment": "總體風險評估"
+  }
+}
+```
+
+### Claude提示模板 (評估分析-判斷)
+
+```
+您是一位經驗豐富的法律評估專家，您的任務是評估以下合同風險分析的質量、全面性和準確性。請仔細審查原始合同條款和相應的風險分析，判斷分析是否準確、全面且有價值。
+
+合同條款:
+{clauses}
+
+風險分析:
+{analysis}
+
+請從以下幾個方面進行評估:
+1. 準確性: 識別的風險是否真實存在，分析是否有法律邏輯錯誤
+2. 完整性: 是否有遺漏的重要風險，特別是有關方權益、責任分配或爭議解決等關鍵條款
+3. 專業性: 法律分析是否專業，引用的法規或判例是否恰當
+4. 實用性: 提供的建議是否具體、實用且有助於降低風險
+5. 結構與清晰度: 分析是否結構清晰，易於理解
+
+請以JSON格式輸出您的評估:
+{
+  "accuracy_score": 1-10的分數,
+  "completeness_score": 1-10的分數,
+  "professionalism_score": 1-10的分數,
+  "usefulness_score": 1-10的分數,
+  "clarity_score": 1-10的分數,
+  "overall_score": 總體評分(1-10),
+  "needs_improvement": true/false,
+  "missing_risks": ["遺漏風險1", "遺漏風險2"],
+  "inaccurate_analyses": ["不準確分析1", "不準確分析2"],
+  "improvement_suggestions": ["改進建議1", "改進建議2"],
+  "strengths": ["分析優點1", "分析優點2"],
+  "comments": "總體評論"
+}
+```
+
+## 開發里程碑
+
+### 里程碑1: 基礎架構搭建
+- 設置專案結構和依賴
+- 實現基本文件處理模塊
+- 建立AI模型客戶端
+
+### 里程碑2: 核心功能實現
+- 實現雙層AI協作引擎
+- 開發API端點
+- 實現基本學習記錄功能
+
+## 概念驗證測試方案
+
+1. **功能測試**
+   - 上傳至少3種不同複雜度的合同文件
+   - 驗證系統能夠正確提取文本和分割條款
+   - 驗證系統能生成初步分析並評估質量
+
+2. **效果評估**
+   - 與單一AI模型結果比較(僅使用Taiwan LLM或Claude)
+   - 與律師手動分析結果比較
+   - 測量處理時間和資源使用
+
+3. **雙層架構評估**
+   - 比較Taiwan LLM初步分析與經Claude評估後的最終分析差異
+   - 評估Claude的判斷是否提升了分析質量
+   - 測試系統處理不同類型法律問題的適應性
+
+## 技術實現細節
+
+### 環境設置
+
+```bash
+# 創建虛擬環境
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安裝依賴
+pip install fastapi uvicorn python-multipart httpx pydantic pdfplumber python-docx pytest
+```
+
+### 專案結構
+
+```
+legal-ai-poc/
+├── app/
+│   ├── __init__.py
+│   ├── main.py             # 應用入口點
+│   ├── api.py              # API定義
+│   ├── config.py           # 配置
+│   ├── document_processor.py  # 文檔處理
+│   ├── dual_ai_engine.py   # 雙AI引擎
+│   ├── model_clients.py    # AI模型客戶端
+│   ├── learning_recorder.py  # 學習記錄
+│   └── utils.py            # 工具函數
+├── tests/
+│   ├── __init__.py
+│   ├── test_document_processor.py
+│   ├── test_dual_ai_engine.py
+│   └── test_api.py
+├── data/
+│   ├── samples/            # 示例文檔
+│   └── learning/           # 學習數據存儲
+├── .env.example            # 環境變數範例
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
+
+### 配置管理 (`config.py`)
+
+```python
+import os
+from dotenv import load_dotenv
+
+# 加載環境變數
+load_dotenv()
+
+# API配置
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
+TAIWAN_LLM_API_KEY = os.getenv("TAIWAN_LLM_API_KEY")
+TAIWAN_LLM_API_URL = os.getenv("TAIWAN_LLM_API_URL")
+
+# 應用配置
+TEMP_UPLOAD_DIR = os.getenv("TEMP_UPLOAD_DIR", "./data/temp")
+LEARNING_DATA_DIR = os.getenv("LEARNING_DATA_DIR", "./data/learning")
+
+# 確保目錄存在
+os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
+os.makedirs(LEARNING_DATA_DIR, exist_ok=True)
+```
+
+## 啟動指令
+
+```bash
+# 啟動應用
+uvicorn app.main:app --reload --port 8000
+```
+
+## 開發過程中的最佳實踐
+
+1. **逐步實現**
+   - 先實現單一模型功能，確認Taiwan LLM能生成合格的法律分析
+   - 再實現Claude的評估功能
+   - 最後整合完整的雙層協作流程
+
+2. **提示工程迭代**
+   - 為Taiwan LLM開發多個生成提示版本，著重台灣法律專業性
+   - 為Claude開發多個評估提示版本，著重邏輯分析和全面評估
+   - 通過實際法律文件測試不同提示組合的效果
+
+3. **處理中文與繁體字**
+   - 確保系統正確處理繁體中文
+   - 建立一致的字符編碼標準
+   - 測試各種中文標點和特殊格式
+
+4. **優化模型互補性**
+   - 充分發揮Taiwan LLM的法律專業優勢
+   - 利用Claude的邏輯推理和評估能力
+   - 設計有效的改進循環，使Taiwan LLM能從Claude的評估中學習
+
+## 處理雙模型挑戰
+
+1. **一致性保障**
+   - 確保兩個模型之間格式一致性
+   - 建立標準化的數據交換格式
+   - 處理可能的輸出格式差異
+
+2. **錯誤處理**
+   - 實現全面的錯誤處理機制，特別是在模型之間傳遞數據時
+   - 設計適當的降級策略，如Taiwan LLM不可用時的備選方案
+   - 處理可能的API限流和超時情況
+
+3. **效能平衡**
+   - 優化提示設計以減少token消耗
+   - 根據任務複雜度動態調整輸出詳細程度
+   - 實現批處理機制，減少API調用頻率
+
+## 交付成果
+
+此概念驗證階段的最終交付物應包括:
+
+1. 功能完整的原型系統，能夠:
+   - 接收和處理合同文件
+   - 使用Taiwan LLM生成專業的法律分析
+   - 使用Claude評估和改進分析
+   - 通過API提供服務
+
+2. 技術文檔:
+   - API使用說明
+   - 系統架構和流程圖
+   - 提示工程策略文檔
+   - 測試報告
+
+3. 概念驗證報告:
+   - 雙層AI架構效能評估
+   - 與單一模型性能比較
+   - Taiwan LLM和Claude協作優勢分析
+   - 未來發展建議

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% set active_page = 'upload' %}
+
+{% block title %}上傳合約 - JURIS NEXUS{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>合約風險分析</h1>
+    <p class="lead">上傳您的合約文件，獲取AI驅動的法律風險評估</p>
+</div>
+
+<div class="upload-container card">
+    <div class="card-header">
+        上傳文件
+    </div>
+    <div class="card-body">
+        <form id="upload-form" enctype="multipart/form-data">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📄</div>
+                <h3>拖放文件或點擊上傳</h3>
+                <p>支援 PDF 和 DOCX 格式</p>
+                <input type="file" id="file-input" name="file" accept=".pdf,.docx" class="hidden">
+            </div>
+            
+            <div id="file-info" class="hidden">
+                <!-- 文件信息將通過JavaScript填充 -->
+            </div>
+            
+            <div id="upload-progress" class="progress-container hidden">
+                <h4>分析進度</h4>
+                <div class="progress">
+                    <div class="progress-bar" style="width: 0%"></div>
+                </div>
+                <div class="process-steps">
+                    <div class="step active">文件上傳</div>
+                    <div class="step">文件預處理</div>
+                    <div class="step">條款提取</div>
+                    <div class="step">風險分析</div>
+                    <div class="step">結果生成</div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="features-section">
+    <h2>JURIS NEXUS 特色功能</h2>
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3>全面風險識別</h3>
+            <p>利用雙層AI架構，從多個角度分析合約條款，發現潛在法律風險。</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>風險嚴重程度評估</h3>
+            <p>對每個風險點進行高、中、低三級評估，幫助您優先處理關鍵問題。</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">💡</div>
+            <h3>改進建議</h3>
+            <p>獲取具體的條款修改建議，避免潛在糾紛和法律責任。</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📚</div>
+            <h3>法律依據引用</h3>
+            <p>每個風險識別都附帶相關法律依據，增強分析的可信度和透明度。</p>
+        </div>
+    </div>
+</div>
+
+<div class="how-it-works">
+    <h2>工作原理</h2>
+    <div class="steps-container">
+        <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <h3>上傳合約</h3>
+                <p>支援PDF和Word格式的合約文件上傳。</p>
+            </div>
+        </div>
+        <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <h3>AI分析</h3>
+                <p>雙層AI架構深入分析每個條款，識別潛在風險。</p>
+            </div>
+        </div>
+        <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <h3>風險報告</h3>
+                <p>生成詳細報告，包括風險評級和改進建議。</p>
+            </div>
+        </div>
+        <div class="step-item">
+            <div class="step-number">4</div>
+            <div class="step-content">
+                <h3>專家反饋</h3>
+                <p>提供反饋以幫助系統不斷學習和改進。</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 額外的頁面特定JavaScript可以放在這裡
+</script>
+{% endblock %} 

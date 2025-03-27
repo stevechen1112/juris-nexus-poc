@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <style>
+    .logo-text { font-family: 'Arial', sans-serif; font-weight: bold; }
+    .logo-icon { fill: #3368c6; }
+    .logo-text-primary { fill: #3368c6; }
+    .logo-text-secondary { fill: #4a4a4a; }
+  </style>
+  <g class="logo-icon">
+    <path d="M30 10L50 20V40L30 50L10 40V20L30 10Z" fill="#3368c6" />
+    <path d="M30 20L40 25V35L30 40L20 35V25L30 20Z" fill="white" />
+    <path d="M30 10L30 20M10 20L20 25M50 20L40 25M30 40L30 50M20 35L10 40M40 35L50 40" stroke="white" stroke-width="2" />
+  </g>
+  <g class="logo-text">
+    <text x="65" y="30" class="logo-text-primary" font-size="20">JURIS</text>
+    <text x="65" y="48" class="logo-text-secondary" font-size="20">NEXUS</text>
+  </g>
+</svg> 

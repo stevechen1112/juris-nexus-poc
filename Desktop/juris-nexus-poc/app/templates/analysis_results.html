@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% set active_page = 'results' %}
+
+{% block title %}分析結果 - JURIS NEXUS{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 結果頁面特定樣式 */
+    .analysis-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--medium-gray);
+        margin-bottom: 1.5rem;
+    }
+    
+    .tab-link {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        font-weight: 500;
+        border-bottom: 2px solid transparent;
+    }
+    
+    .tab-link.active {
+        border-bottom-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .clause-item {
+        display: flex;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--medium-gray);
+        cursor: pointer;
+    }
+    
+    .clause-item:hover {
+        background-color: var(--light-gray);
+    }
+    
+    .clause-item.active {
+        background-color: var(--primary-light);
+        border-left: 3px solid var(--primary-color);
+    }
+    
+    .clause-number {
+        font-weight: 600;
+        margin-right: 1rem;
+        color: var(--primary-color);
+    }
+    
+    .risk-count {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .risk-item {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        border-left: 3px solid var(--primary-color);
+        background-color: var(--light-gray);
+    }
+    
+    .risk-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+    
+    .risk-title {
+        font-weight: 500;
+        margin-left: 0.5rem;
+    }
+    
+    .stars {
+        display: flex;
+        gap: 0.25rem;
+    }
+    
+    .star {
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--accent-color);
+    }
+    
+    .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+        background-color: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .high-value {
+        color: var(--danger-color);
+    }
+    
+    .medium-value {
+        color: var(--warning-color);
+    }
+    
+    .low-value {
+        color: var(--success-color);
+    }
+    
+    .overall-value {
+        color: var(--primary-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>合約風險分析報告</h1>
+    <p class="lead">文件名稱：{{ document.filename }}</p>
+    <div class="document-meta">
+        <span>上傳時間：{{ document.upload_time }}</span>
+        <span>分析完成：{{ document.analysis_time }}</span>
+    </div>
+</div>
+
+<div class="analysis-tabs">
+    <div class="tab-link active" data-tab="tab-summary">摘要</div>
+    <div class="tab-link" data-tab="tab-details">詳細分析</div>
+    <div class="tab-link" data-tab="tab-export">匯出報告</div>
+</div>
+
+<!-- 摘要頁籤 -->
+<div id="tab-summary" class="tab-content active">
+    <div class="summary-stats">
+        <div class="stat-card">
+            <div class="stat-value high-value">{{ analysis.summary.high_risks_count }}</div>
+            <div class="stat-label">高風險條款</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value medium-value">{{ analysis.summary.medium_risks_count }}</div>
+            <div class="stat-label">中風險條款</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value low-value">{{ analysis.summary.low_risks_count }}</div>
+            <div class="stat-label">低風險條款</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value overall-value">{{ analysis.analysis|length }}</div>
+            <div class="stat-label">分析條款總數</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3>風險評估摘要</h3>
+        </div>
+        <div class="card-body">
+            <p>{{ analysis.summary.overall_risk_assessment }}</p>
+            
+            <h4>主要風險點</h4>
+            <ul>
+                {% for risk in top_risks %}
+                <li>
+                    <strong>{{ risk.clause_id }}:</strong> {{ risk.risk_description }}
+                    <span class="badge badge-{{ risk.severity|lower }}">{{ risk.severity }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- 詳細分析頁籤 -->
+<div id="tab-details" class="tab-content">
+    <div class="analysis-container">
+        <!-- 條款導航 -->
+        <div class="clause-nav">
+            <h3>合約條款</h3>
+            <div class="clause-list">
+                {% for clause in analysis.analysis %}
+                <div class="clause-item" data-id="{{ clause.clause_id }}">
+                    <div class="clause-number">條款 {{ clause.clause_id }}</div>
+                    <div class="risk-count">
+                        {% if clause.risks|selectattr('severity', 'equalto', '高')|list|length > 0 %}
+                        <span class="badge badge-high">{{ clause.risks|selectattr('severity', 'equalto', '高')|list|length }}</span>
+                        {% endif %}
+                        
+                        {% if clause.risks|selectattr('severity', 'equalto', '中')|list|length > 0 %}
+                        <span class="badge badge-medium">{{ clause.risks|selectattr('severity', 'equalto', '中')|list|length }}</span>
+                        {% endif %}
+                        
+                        {% if clause.risks|selectattr('severity', 'equalto', '低')|list|length > 0 %}
+                        <span class="badge badge-low">{{ clause.risks|selectattr('severity', 'equalto', '低')|list|length }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <!-- 內容區域 -->
+        <div class="content-area">
+            <div class="initial-message">
+                <h3>請從左側選擇一個條款進行查看</h3>
+                <p>點擊左側的條款以查看詳細分析和風險評估。</p>
+            </div>
+        </div>
+        
+        <!-- 側邊欄 -->
+        <div class="sidebar">
+            <div class="initial-message">
+                <h3>建議和反饋</h3>
+                <p>選擇條款後，此處將顯示改進建議和專家反饋選項。</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 匯出報告頁籤 -->
+<div id="tab-export" class="tab-content">
+    <div class="card">
+        <div class="card-header">
+            <h3>匯出報告</h3>
+        </div>
+        <div class="card-body">
+            <p>選擇您希望的報告格式和內容進行匯出。</p>
+            
+            <form id="export-form">
+                <div class="form-group">
+                    <label class="form-label">報告格式</label>
+                    <div class="format-options">
+                        <label class="radio-option">
+                            <input type="radio" name="format" value="pdf" checked>
+                            <span>PDF</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="format" value="docx">
+                            <span>Word</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="format" value="json">
+                            <span>JSON</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">報告內容</label>
+                    <div class="checkbox-options">
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="include_summary" checked>
+                            <span>風險摘要</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="include_details" checked>
+                            <span>條款詳細分析</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="include_recommendations" checked>
+                            <span>改進建議</span>
+                        </label>
+                        <label class="checkbox-option">
+                            <input type="checkbox" name="include_legal_references">
+                            <span>相關法條引用</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">生成報告</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            <h3>分享分析結果</h3>
+        </div>
+        <div class="card-body">
+            <p>生成一個可以分享的結果連結，或直接通過電子郵件分享。</p>
+            
+            <div class="form-group">
+                <label class="form-label">分享連結</label>
+                <div class="link-container">
+                    <input type="text" class="form-control" value="{{ share_url }}" readonly>
+                    <button class="btn btn-outline">複製</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">通過電子郵件分享</label>
+                <div class="email-share">
+                    <input type="email" class="form-control" placeholder="輸入收件人電子郵件地址">
+                    <button class="btn btn-primary">發送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 初始化示例數據（實際上將從後端傳入）
+    window.analysisData = {
+        document: {
+            filename: "合約樣本.pdf",
+            upload_time: "2023-11-18 14:30",
+            analysis_time: "2023-11-18 14:35"
+        },
+        analysis: {
+            analysis: [
+                {
+                    clause_id: "1",
+                    clause_text: "甲方可在任何時間單方面終止合約，無需提前通知",
+                    risks: [
+                        {
+                            risk_description: "條款不平等，對乙方極不利",
+                            severity: "高",
+                            legal_basis: "民法第247條之1不公平條款原則",
+                            recommendation: "修改為雙方都需提前合理通知才能終止合約"
+                        }
+                    ]
+                },
+                // 更多條款...
+            ],
+            summary: {
+                high_risks_count: 3,
+                medium_risks_count: 5,
+                low_risks_count: 2,
+                overall_risk_assessment: "此合約存在多項重大法律風險，建議在簽署前進行全面修改。特別是終止條款、責任限制和爭議解決機制都需要重新協商。"
+            }
+        }
+    };
+</script>
+{% endblock %} 
